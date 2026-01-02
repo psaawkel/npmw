@@ -1,0 +1,160 @@
+#!/bin/bash
+# NPM Wrapper for Angular 20 - Automatically downloads and uses Node.js 22.12.0
+# Works like Gradle Wrapper - no external tools required
+
+set -e
+
+# ============================================================================
+# Configuration
+# ============================================================================
+NODE_VERSION="22.12.0"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NODE_CACHE_DIR="${SCRIPT_DIR}/.nodejs"
+
+# ============================================================================
+# Detect OS and Architecture
+# ============================================================================
+detect_platform() {
+    local os=""
+    local arch=""
+
+    # Detect OS
+    case "$(uname -s)" in
+        Linux*)     os="linux" ;;
+        Darwin*)    os="darwin" ;;
+        MINGW*|MSYS*|CYGWIN*)    os="win" ;;
+        *)
+            echo "Error: Unsupported operating system: $(uname -s)"
+            exit 1
+            ;;
+    esac
+
+    # Detect Architecture
+    case "$(uname -m)" in
+        x86_64|amd64)   arch="x64" ;;
+        arm64|aarch64)  arch="arm64" ;;
+        *)
+            echo "Error: Unsupported architecture: $(uname -m)"
+            exit 1
+            ;;
+    esac
+
+    echo "${os}-${arch}"
+}
+
+# ============================================================================
+# Download and Extract Node.js
+# ============================================================================
+download_node() {
+    local platform="$1"
+    local node_dir="${NODE_CACHE_DIR}/node-v${NODE_VERSION}-${platform}"
+
+    # Check if already downloaded
+    if [ -d "${node_dir}" ] && [ -f "${node_dir}/bin/node" ] || [ -f "${node_dir}/node.exe" ]; then
+        echo "npmw: Node.js ${NODE_VERSION} already cached"
+        return 0
+    fi
+
+    echo "npmw: Downloading Node.js ${NODE_VERSION} for ${platform}..."
+
+    # Create cache directory
+    mkdir -p "${NODE_CACHE_DIR}"
+
+    # Determine file extension and download URL
+    local file_ext=""
+    local download_url=""
+
+    if [[ "${platform}" == win-* ]]; then
+        file_ext="zip"
+        download_url="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${platform}.zip"
+    else
+        file_ext="tar.gz"
+        download_url="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-${platform}.tar.gz"
+    fi
+
+    local download_file="${NODE_CACHE_DIR}/node-v${NODE_VERSION}-${platform}.${file_ext}"
+
+    # Download with curl or wget
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "${download_file}" "${download_url}" || {
+            echo "Error: Failed to download Node.js from ${download_url}"
+            rm -f "${download_file}"
+            exit 1
+        }
+    elif command -v wget >/dev/null 2>&1; then
+        wget -q -O "${download_file}" "${download_url}" || {
+            echo "Error: Failed to download Node.js from ${download_url}"
+            rm -f "${download_file}"
+            exit 1
+        }
+    else
+        echo "Error: Neither curl nor wget found. Please install one of them."
+        exit 1
+    fi
+
+    echo "npmw: Extracting Node.js ${NODE_VERSION}..."
+
+    # Extract archive
+    if [[ "${file_ext}" == "tar.gz" ]]; then
+        tar -xzf "${download_file}" -C "${NODE_CACHE_DIR}" || {
+            echo "Error: Failed to extract ${download_file}"
+            rm -f "${download_file}"
+            exit 1
+        }
+    else
+        # For zip files (Windows on Git Bash)
+        if command -v unzip >/dev/null 2>&1; then
+            unzip -q "${download_file}" -d "${NODE_CACHE_DIR}" || {
+                echo "Error: Failed to extract ${download_file}"
+                rm -f "${download_file}"
+                exit 1
+            }
+        else
+            echo "Error: unzip command not found. Please install unzip."
+            exit 1
+        fi
+    fi
+
+    # Clean up download file
+    rm -f "${download_file}"
+
+    echo "npmw: Node.js ${NODE_VERSION} installed successfully"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+main() {
+    local platform=$(detect_platform)
+    local node_dir="${NODE_CACHE_DIR}/node-v${NODE_VERSION}-${platform}"
+
+    # Ensure Node.js is downloaded
+    download_node "${platform}"
+
+    # Determine node and npm executables
+    local node_bin=""
+    local npm_bin=""
+
+    if [[ "${platform}" == win-* ]]; then
+        node_bin="${node_dir}/node.exe"
+        npm_bin="${node_dir}/node_modules/npm/bin/npm-cli.js"
+    else
+        node_bin="${node_dir}/bin/node"
+        npm_bin="${node_dir}/bin/npm"
+    fi
+
+    # Verify node exists
+    if [ ! -f "${node_bin}" ]; then
+        echo "Error: Node.js binary not found at ${node_bin}"
+        exit 1
+    fi
+
+    # Run npm with all arguments
+    if [[ "${platform}" == win-* ]]; then
+        "${node_bin}" "${npm_bin}" "$@"
+    else
+        exec "${npm_bin}" "$@"
+    fi
+}
+
+main "$@"
