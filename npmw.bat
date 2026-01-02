@@ -80,16 +80,21 @@ REM Run npm
 REM ============================================================================
 :run_npm
 
-REM Verify node.exe exists
+REM Verify node.exe and npm.cmd exist
 if not exist "%NODE_DIR%\node.exe" (
     echo Error: Node.js binary not found at %NODE_DIR%\node.exe
     exit /b 1
 )
 
-REM Add Node.js to PATH for this session
+if not exist "%NODE_DIR%\npm.cmd" (
+    echo Error: npm.cmd not found at %NODE_DIR%\npm.cmd
+    exit /b 1
+)
+
+REM Add Node.js to PATH for this session so npm scripts use correct Node version
 set PATH=%NODE_DIR%;%PATH%
 
-REM Run npm with all arguments
-"%NODE_DIR%\node.exe" "%NODE_DIR%\node_modules\npm\bin\npm-cli.js" %*
+REM Run npm - npm.cmd will use node.exe from PATH
+call "%NODE_DIR%\npm.cmd" %*
 
 exit /b %errorlevel%
