@@ -149,10 +149,12 @@ main() {
         exit 1
     fi
 
-    # Run npm with all arguments
+    # Add Node.js to PATH so npm scripts use the correct Node version
     if [[ "${platform}" == win-* ]]; then
+        export PATH="${node_dir}:${PATH}"
         "${node_bin}" "${npm_bin}" "$@"
     else
+        export PATH="${node_dir}/bin:${PATH}"
         exec "${npm_bin}" "$@"
     fi
 }
