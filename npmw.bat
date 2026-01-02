@@ -40,11 +40,23 @@ if not exist "%NODE_CACHE_DIR%" mkdir "%NODE_CACHE_DIR%"
 set DOWNLOAD_URL=https://nodejs.org/dist/v%NODE_VERSION%/node-v%NODE_VERSION%-%PLATFORM%.zip
 set DOWNLOAD_FILE=%NODE_CACHE_DIR%\node-v%NODE_VERSION%-%PLATFORM%.zip
 
-REM Download using PowerShell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "& { try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object System.Net.WebClient).DownloadFile('%DOWNLOAD_URL%', '%DOWNLOAD_FILE%') } catch { Write-Error 'Failed to download Node.js'; exit 1 } }"
+REM Download using PowerShell (Invoke-WebRequest)
+echo Downloading from: %DOWNLOAD_URL%
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $ProgressPreference = 'SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri '%DOWNLOAD_URL%' -OutFile '%DOWNLOAD_FILE%' -UseBasicParsing; exit 0 } catch { Write-Host \"Error: $($_.Exception.Message)\"; exit 1 }"
 
 if errorlevel 1 (
+    echo.
     echo Error: Failed to download Node.js from %DOWNLOAD_URL%
+    echo.
+    echo Possible causes:
+    echo   - Network connectivity issues
+    echo   - Corporate firewall/proxy blocking nodejs.org
+    echo   - Invalid Node.js version or platform
+    echo.
+    echo If behind a proxy, set environment variables:
+    echo   set HTTP_PROXY=http://proxy:port
+    echo   set HTTPS_PROXY=http://proxy:port
+    echo.
     if exist "%DOWNLOAD_FILE%" del /f /q "%DOWNLOAD_FILE%"
     exit /b 1
 )
